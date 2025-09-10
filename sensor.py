@@ -8,19 +8,20 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
 # ~ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
-    # ~ _LOGGER.debug("Running async_setup_entry")
-    # ~ api = hass.data[DOMAIN].get("api")
-    # ~ if not api:
-        # ~ _LOGGER.error("API instance not found in hass.data[DOMAIN]")
-        # ~ return
+    _LOGGER.debug("Running async_setup_entry")
+    api = hass.data[DOMAIN].get("api")
+    if not api:
+        _LOGGER.error("API instance not found in hass.data[DOMAIN]")
+        return
 
-    # ~ sensors = []
+    sensors = []
 
-    # ~ # Always add HelloWorld sensor
-    # ~ hello_sensor = VasHelloWorldSensor(api)
-    # ~ sensors.append(hello_sensor)
-    # ~ _LOGGER.debug("HelloWorld sensor prepared: %s", hello_sensor._attr_unique_id)
+    # Always add HelloWorld sensor
+    hello_sensor = VasHelloWorldSensor(api)
+    sensors.append(hello_sensor)
+    _LOGGER.debug("HelloWorld sensor prepared: %s", hello_sensor._attr_unique_id)
 
     # ~ # načtení SmartData CustomerData (seznam vodoměrů)
     # ~ customer_data_list = await hass.async_add_executor_job(api.get_smartdata_customer)
@@ -38,21 +39,7 @@ _LOGGER = logging.getLogger(__name__)
                 # ~ _LOGGER.debug("Meter sensor prepared: %s", meter_sensor._attr_unique_id)
 
     # ~ _LOGGER.debug("Adding total %d sensors", len(sensors))
-    # ~ async_add_entities(sensors, True)
-
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
-    _LOGGER.debug("Running async_setup_entry")
-    api = hass.data[DOMAIN].get("api")
-    if not api:
-        _LOGGER.error("API instance not found in hass.data[DOMAIN]")
-        return
-
-    # Přidáme jen HelloWorld senzor
-    hello_sensor = VasHelloWorldSensor(api)
-    _LOGGER.debug("HelloWorld sensor prepared: %s", hello_sensor._attr_unique_id)
-
-    async_add_entities([hello_sensor], True)
-
+    async_add_entities(sensors, True)
 
 class VasHelloWorldSensor(SensorEntity):
     def __init__(self, api: VodarenskaAPI):
