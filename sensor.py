@@ -127,8 +127,13 @@ class VodarenskaMeterSensor(SensorEntity):
     async def async_update(self):
         """Fetch new state data for the sensor."""
         try:
+            date_from_str = self._attrs.get("meter_date_from")
+            date_to_str = datetime.now().date().isoformat()
             profile_data = await self.hass.async_add_executor_job(
-                self._api.get_smartdata_profile, self._meter_id, self.hass.data[DOMAIN]["date_from"], self.hass.data[DOMAIN]["date_to"]
+                self._api.get_smartdata_profile, 
+                self._meter_id, 
+                date_from_str,
+                date_to_str
             )
             if profile_data:
                 last = profile_data[-1]

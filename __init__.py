@@ -22,8 +22,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # Uložíme API instance do hass.data pro sdílení s ostatními částmi integrace
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN]["api"] = api
-    hass.data[DOMAIN]["date_from"] = conf.get("date_from")
-    hass.data[DOMAIN]["date_to"] = conf.get("date_to")
 
     
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])

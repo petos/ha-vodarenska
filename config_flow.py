@@ -8,8 +8,6 @@ DATA_SCHEMA = vol.Schema({
     vol.Required("password"): str,
     vol.Required("client_id"): str,
     vol.Required("client_secret"): str,
-    vol.Required("date_from"): str,
-    vol.Required("date_to"): str,
 })
 
 class HaVodarenskaFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
