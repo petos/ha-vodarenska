@@ -1,4 +1,6 @@
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.components.sensor import SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from .const import DOMAIN
@@ -35,17 +37,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         _LOGGER.debug("No customer data available, only HelloWorld sensor will be added")
     else:
         meters = customer_data_list if isinstance(customer_data_list, list) else []
-        for customer in meters:
+        for customer in customer_data_list:
             for meter in customer.get("INSTALLED_METERS", []):
-                meter_id = meter.get("METER_ID")
-                if meter_id:
-                    meter_sensor = VasMeterSensor(api, meter_id)
+                if meter.get("METER_ID"):
+                    meter_sensor = VodarenskaMeterSensor(api, meter, customer)
                     sensors.append(meter_sensor)
                     _LOGGER.debug("Meter sensor prepared: %s", meter_sensor._attr_unique_id)
 
     _LOGGER.debug("Adding total %d sensors", len(sensors))
     async_add_entities(sensors, True)
-
 
 class VasHelloWorldSensor(SensorEntity):
     def __init__(self, api: VodarenskaAPI):
@@ -54,9 +54,10 @@ class VasHelloWorldSensor(SensorEntity):
         self._attr_unique_id = "vas_helloworld"
         self._state = None
         self._attrs = {}
+        self._attr_icon = "mdi:hand-wave"
 
     @property
-    def state(self):
+    def native_value(self):
         return self._state
 
     @property
@@ -76,53 +77,77 @@ class VasHelloWorldSensor(SensorEntity):
             _LOGGER.error("Error updating HelloWorld sensor: %s", e)
 
 
-class VasMeterSensor(SensorEntity):
-    def __init__(self, api: VodarenskaAPI, meter_id: str):
+class VodarenskaMeterSensor(SensorEntity):
+    """Representation of a water meter sensor."""
+
+    # stejné pro všechny instance
+    _attr_device_class = SensorDeviceClass.WATER
+    _attr_native_unit_of_measurement = "m³"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:water"
+
+    def __init__(self, api: VodarenskaAPI, meter_data: dict, customer_data: dict):
         self._api = api
-        self._meter_id = meter_id
-        self._attr_name = f"VAS Vodomer {meter_id}"
-        self._attr_unique_id = f"vas_meter_{meter_id}"
-        self._state = None
-        self._attrs = {}
-        self._attr_icon = "mdi:water" 
+        self._meter_id = meter_data["METER_ID"]
+        self._meter_number = meter_data.get("METER_NUMBER", str(self._meter_id))
+
+        # základní identifikace
+        self._attr_name = f"VAS Vodomer {self._meter_id}"
+        self._attr_unique_id = f"ha_vodarenska_{self._meter_id}"
+
+        # hlavní hodnota
+        self._state: float | None = None
+
+        # metadata jako atributy
+        self._attrs = {
+            "customer_id": customer_data.get("CP_ID"),
+            "city": customer_data.get("CP_ADRESS", {}).get("CITY"),
+            "city_part": customer_data.get("CP_ADRESS", {}).get("CITYPART"),
+            "street": customer_data.get("CP_ADRESS", {}).get("STREET"),
+            "house_number": customer_data.get("CP_ADRESS", {}).get("HOUSENUM"),
+            "technical_number1": customer_data.get("TECHNUM1"),
+            "technical_number2": customer_data.get("TECHNUM2"),
+            "meter_date_from": meter_data.get("METER_DATE_FROM"),
+            "meter_date_to": meter_data.get("METER_DATE_TO"),
+            "radio_number": meter_data.get("RADIO_NUMBER"),
+            "radio_date_from": meter_data.get("RADIO_DATE_FROM"),
+            "radio_date_to": meter_data.get("RADIO_DATE_TO"),
+            "mp_type": meter_data.get("MP_TYPE"),
+        }
 
     @property
-    def state(self):
+    def native_value(self):
         return self._state
 
     @property
     def extra_state_attributes(self):
+        """Return additional attributes for HA."""
         return self._attrs
 
     async def async_update(self):
-        conf = self.hass.data[DOMAIN]
-        date_from = conf.get("date_from")
-        date_to = conf.get("date_to")
+        """Fetch new state data for the sensor."""
+        try:
+            profile_data = await self.hass.async_add_executor_job(
+                self._api.get_smartdata_profile, self._meter_id, self.hass.data[DOMAIN]["date_from"], self.hass.data[DOMAIN]["date_to"]
+            )
+            if profile_data:
+                last = profile_data[-1]
+                raw_value = last.get("STATE")
 
-        if not date_from or not date_to:
-            self._state = "missing_date_range"
-            self._attrs = {"meter_id": self._meter_id}
-        else:
-            try:
-                data = await self.hass.async_add_executor_job(
-                    self._api.get_smartdata_profile,
+                try:
+                    self._state = float(raw_value) if raw_value is not None else None
+                except (TypeError, ValueError):
+                    _LOGGER.warning("Invalid value for meter %s: %s", self._meter_id, raw_value)
+                    self._state = None
+
+                self._attrs["last_update"] = datetime.now().isoformat()
+                self._attrs["last_timestamp"] = last.get("DATE") or None
+                _LOGGER.debug(
+                    "Updated meter %s: value=%s, last_update=%s, last_timestamp=%s",
                     self._meter_id,
-                    date_from,
-                    date_to,
+                    self._state,
+                    self._attrs["last_update"],
+                    self._attrs["last_timestamp"]
                 )
-                _LOGGER.debug("Profile data for meter %s: %s", self._meter_id, data)
-
-                if data and isinstance(data, list):
-                    last = data[-1]
-                    self._state = last.get("STATE")
-                    self._attrs = {
-                        "timestamp": last.get("DATE"),
-                        "meter_id": self._meter_id,
-                    }
-                else:
-                    self._state = "no_data"
-                    self._attrs = {"meter_id": self._meter_id}
-            except Exception as e:
-                _LOGGER.error("Error updating meter %s: %s", self._meter_id, e)
-                self._state = "error"
-                self._attrs = {"meter_id": self._meter_id}
+        except Exception as e:
+            _LOGGER.error("Error updating meter %s: %s", self._meter_id, e)
