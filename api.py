@@ -1,8 +1,9 @@
 import requests
 import time
 from datetime import datetime
-from .const import BASE_URL_CONNECT, BASE_URL_API
 import logging
+
+from .const import BASE_URL_CONNECT, BASE_URL_API
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,7 +59,6 @@ class VodarenskaAPI:
         return resp.json()
 
     def get_smartdata_profile(self, meter_id: str, date_from: str, date_to: str) -> dict:
-        """Načte SmartData/ProfileData pro konkrétní vodoměr."""
         url = f"{BASE_URL_API}/SmartData/ProfileData"
         params = {
             "METERID": meter_id,
@@ -70,8 +70,9 @@ class VodarenskaAPI:
         if not resp.ok:
             _LOGGER.error("ProfileData GET failed (%s): %s", resp.status_code, resp.text)
             resp.raise_for_status()
+        else:
+            _LOGGER.debug("ProfileData GET succeded (%s): %s", resp.status_code, resp.text)
         return resp.json()
-
 
     def get_smartdata_alerts(self) -> dict:
         url = f"{BASE_URL_API}/SmartData/AlertData"
