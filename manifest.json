@@ -1,7 +1,7 @@
 {
   "domain": "ha_vodarenska",
   "name": "Vodárenská Vodoměr (VAS API)",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "requirements": ["requests"],
   "codeowners": ["@petos"],
   "iot_class": "cloud_polling",
