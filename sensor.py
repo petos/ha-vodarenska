@@ -179,8 +179,6 @@ class VodarenskaMeterSensor(SensorEntity):
 
 class VodarenskaInstalledSensor(BinarySensorEntity):
     """Sensor that shows whether the meter is still installed."""
-
-    _attr_icon = "mdi:water-check"
     _attr_device_class = BinarySensorDeviceClass.PRESENCE
 
     def __init__(self, api: VodarenskaAPI, meter_data: dict, customer_data: dict):
@@ -192,10 +190,11 @@ class VodarenskaInstalledSensor(BinarySensorEntity):
         self._meter_number = meter_data.get("METER_NUMBER", str(self._meter_id))
         self._meter_date_to = meter_data.get("METER_DATE_TO")
         self._state = self._meter_date_to in (None, "None", "null")
-        self._attr_is_on = self._meter_date_to in (None, "None", "null")
+
 
     @property
-    def is_on(self):
+    def is_on(self) -> bool:
+        """Return True if the meter is still installed (no removal date)."""
         return self._state
 
     @property
