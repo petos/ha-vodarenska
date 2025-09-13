@@ -69,12 +69,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                 # nevykonáváme await coordinator.async_refresh() – necháme HA provést první update
                 meter_sensor = VodarenskaMeterSensor(coordinator, api, meter, customer)
                 installed_sensor = VodarenskaInstalledSensor(coordinator, api, meter, customer)
+                temperature_sensor = VodarenskaTemperatureSensor(coordinator, api, meter, customer)
 
                 sensors.append(meter_sensor)
                 sensors.append(installed_sensor)
+                sensors.append(temperature_sensor)
 
                 _LOGGER.debug("Meter sensor prepared: %s", meter_sensor._attr_unique_id)
                 _LOGGER.debug("Installed sensor prepared: %s", installed_sensor._attr_unique_id)
+                _LOGGER.debug("Temperature sensor prepared: %s", temperature_sensor._attr_unique_id)
 
     _LOGGER.debug("Adding total %d sensors", len(sensors))
     async_add_entities(sensors, True)
@@ -197,5 +200,50 @@ class VodarenskaInstalledSensor(CoordinatorEntity, BinarySensorEntity):
             "name": f"VAS Vodomer {self._meter_id}",
             "manufacturer": "VAS Vodárenská a.s.",
             "model": "Installed flag",
+            "serial_number": self._meter_number,
+        }
+
+class VodarenskaTemperatureSensor(CoordinatorEntity, SensorEntity):
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = "°C"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:thermometer"
+
+    def __init__(self, coordinator: DataUpdateCoordinator, api: VodarenskaAPI, meter_data: dict, customer_data: dict):
+        super().__init__(coordinator)
+        self._api = api
+        self._meter_id = meter_data["METER_ID"]
+        self._meter_number = meter_data.get("METER_NUMBER", str(self._meter_id))
+        self._attrs = {
+            "customer_id": customer_data.get("CP_ID"),
+            "meter_date_from": meter_data.get("METER_DATE_FROM"),
+            "meter_date_to": meter_data.get("METER_DATE_TO"),
+            "radio_number": meter_data.get("RADIO_NUMBER"),
+        }
+        self._attr_name = f"VAS Vodomer {self._meter_id} Temperature"
+        self._attr_unique_id = f"ha_vodarenska_{self._meter_id}_temperature"
+
+    @property
+    def native_value(self):
+        """Vrací HEAT hodnotu (teplota) z coordinátora"""
+        last = self.coordinator.data
+        if last and "HEAT" in last:
+            try:
+                return float(last["HEAT"])
+            except (ValueError, TypeError):
+                return None
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        return self._attrs
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, str(self._meter_id))},
+            "name": f"VAS Vodomer {self._meter_id}",
+            "manufacturer": "VAS Vodárenská a.s.",
+            "model": "Temperature sensor",
             "serial_number": self._meter_number,
         }
