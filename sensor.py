@@ -156,7 +156,7 @@ class VodarenskaMeterSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        return self._attrs
+        return {**self._attrs, "last_seen": datetime.now().isoformat()}
 
     @property
     def device_info(self):
@@ -202,6 +202,9 @@ class VodarenskaInstalledSensor(CoordinatorEntity, BinarySensorEntity):
             "model": "Installed flag",
             "serial_number": self._meter_number,
         }
+    @property
+    def extra_state_attributes(self):
+        return {"last_seen": datetime.now().isoformat()}
 
 class VodarenskaTemperatureSensor(CoordinatorEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TEMPERATURE
@@ -233,10 +236,9 @@ class VodarenskaTemperatureSensor(CoordinatorEntity, SensorEntity):
             except (ValueError, TypeError):
                 return None
         return None
-
     @property
     def extra_state_attributes(self):
-        return self._attrs
+        return {**self._attrs, "last_seen": datetime.now().isoformat()} 
 
     @property
     def device_info(self):
