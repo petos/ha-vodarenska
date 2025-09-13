@@ -3,8 +3,25 @@ import time
 from datetime import datetime
 from .const import BASE_URL_CONNECT, BASE_URL_API
 import logging
+import shlex
+
 
 _LOGGER = logging.getLogger(__name__)
+
+def to_curl(url, headers=None, params=None):
+    curl = ["curl", "-i", shlex.quote(url)]
+    if params:
+        # Přidáme query string, pokud už není součástí URL
+        from urllib.parse import urlencode, urlsplit, urlunsplit
+
+        split_url = urlsplit(url)
+        query = urlencode(params)
+        new_url = urlunsplit(split_url._replace(query=query))
+        curl = ["curl", "-i", shlex.quote(new_url)]
+    if headers:
+        for k, v in headers.items():
+            curl.extend(["-H", shlex.quote(f"{k}: {v}")])
+    return " ".join(curl)
 
 class VodarenskaAPI:
     def __init__(self, username: str, password: str, client_id: str, client_secret: str):
@@ -44,6 +61,10 @@ class VodarenskaAPI:
 
     def hello_world(self) -> dict:
         url = f"{BASE_URL_API}/HelloWorld"
+        #For debug only...
+        #curl_cmd = to_curl(url, headers=self._headers())
+        #_LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
+        ##
         resp = requests.get(url, headers=self._headers(), timeout=10)
         resp.raise_for_status()
         return {
@@ -66,6 +87,10 @@ class VodarenskaAPI:
             "dateTo": date_to,
         }
         _LOGGER.debug("Fetching profile data for meter %s (from %s to %s)", meter_id, date_from, date_to)
+        #For debug only...
+        #curl_cmd = self._to_curl(url, headers=self._headers(), params=params)
+        #_LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
+        ##
         resp = requests.get(url, headers=self._headers(), params=params, timeout=15)
         if not resp.ok:
             _LOGGER.error("ProfileData GET failed (%s): %s", resp.status_code, resp.text)
@@ -78,3 +103,5 @@ class VodarenskaAPI:
         resp = requests.get(url, headers=self._headers(), timeout=10)
         resp.raise_for_status()
         return resp.json()
+
+
