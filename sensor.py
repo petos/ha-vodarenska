@@ -5,7 +5,7 @@ from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, Sen
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed, CoordinatorEntity
 
 from .const import DOMAIN
 from .api import VodarenskaAPI
@@ -46,8 +46,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                 # Vytvoříme coordinator pro každý meter, update se bude provádět asynchronně
                 async def async_update_data(meter_id=meter_id, meter=meter):
                     try:
-                        date_from = meter.get("METER_DATE_FROM")
                         date_to = meter.get("METER_DATE_TO") or datetime.now().date().isoformat()
+                        date_from = (datetime.strptime(date_to, "%Y-%m-%d").date() - timedelta(days=1)).isoformat()
+                        #date_from = meter.get("METER_DATE_FROM").split("T")[0]
                         profile_data = await hass.async_add_executor_job(
                             api.get_smartdata_profile, meter_id, date_from, date_to
                         )
@@ -109,9 +110,6 @@ class VasHelloWorldSensor(SensorEntity):
             _LOGGER.error("Error updating HelloWorld sensor: %s", e)
 
 
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
-
 class VodarenskaMeterSensor(CoordinatorEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.WATER
     _attr_native_unit_of_measurement = "m³"
@@ -140,6 +138,7 @@ class VodarenskaMeterSensor(CoordinatorEntity, SensorEntity):
         }
         self._attr_name = f"VAS Vodomer {self._meter_id}"
         self._attr_unique_id = f"ha_vodarenska_{self._meter_id}"
+
 
     @property
     def native_value(self):
