@@ -53,7 +53,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                             api.get_smartdata_profile, meter_id, date_from, date_to
                         )
                         if profile_data:
-                            return profile_data[-1]  # poslední stav
+                            last_entry = profile_data[-1]
+                            # uložíme DATE z API jako last_update
+                            last_entry["_api_last_update"] = last_entry.get("DATE")
+                            return last_entry
                         return None
                     except Exception as e:
                         raise UpdateFailed(f"Error fetching profile data for meter {meter_id}: {e}")
@@ -156,7 +159,11 @@ class VodarenskaMeterSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        return {**self._attrs, "last_seen": datetime.now().isoformat()}
+        attrs = dict(self._attrs)
+        if self.coordinator.data:
+            attrs["last_seen"] = datetime.now().isoformat()
+            attrs["last_update"] = self.coordinator.data.get("_api_last_update")
+        return attrs
 
     @property
     def device_info(self):
@@ -179,19 +186,30 @@ class VodarenskaInstalledSensor(CoordinatorEntity, BinarySensorEntity):
         self._meter_number = meter_data.get("METER_NUMBER", str(self._meter_id))
         self._attr_name = f"VAS Vodomer {self._meter_id} Installed"
         self._attr_unique_id = f"ha_vodarenska_{self._meter_id}_installed"
+        # přidáme self._attrs
+        self._attrs = {
+            "customer_id": customer_data.get("CP_ID"),
+            "meter_date_from": meter_data.get("METER_DATE_FROM"),
+            "meter_date_to": meter_data.get("METER_DATE_TO"),
+            "radio_number": meter_data.get("RADIO_NUMBER"),
+        }
 
     @property
     def is_on(self) -> bool:
         """Vrací True, pokud meter stále nainstalován (METER_DATE_TO je None)"""
-        customers = self.coordinator.data
-        if not customers:
-            return False
-        # data z coordinatoru je dict posledního profilu, zde jen kontrola existence
         last_meter_data = self.coordinator.data
         if not last_meter_data:
             return False
         date_to = last_meter_data.get("METER_DATE_TO")
         return date_to in (None, "None", "null")
+
+    @property
+    def extra_state_attributes(self):
+        attrs = dict(self._attrs)
+        if self.coordinator.data:
+            attrs["last_seen"] = datetime.now().isoformat()
+            attrs["last_update"] = self.coordinator.data.get("_api_last_update")
+        return attrs
 
     @property
     def device_info(self):
@@ -202,9 +220,7 @@ class VodarenskaInstalledSensor(CoordinatorEntity, BinarySensorEntity):
             "model": "Installed flag",
             "serial_number": self._meter_number,
         }
-    @property
-    def extra_state_attributes(self):
-        return {"last_seen": datetime.now().isoformat()}
+
 
 class VodarenskaTemperatureSensor(CoordinatorEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TEMPERATURE
@@ -236,9 +252,14 @@ class VodarenskaTemperatureSensor(CoordinatorEntity, SensorEntity):
             except (ValueError, TypeError):
                 return None
         return None
+
     @property
     def extra_state_attributes(self):
-        return {**self._attrs, "last_seen": datetime.now().isoformat()} 
+        attrs = dict(self._attrs)
+        if self.coordinator.data:
+            attrs["last_seen"] = datetime.now().isoformat()
+            attrs["last_update"] = self.coordinator.data.get("_api_last_update")
+        return attrs
 
     @property
     def device_info(self):
