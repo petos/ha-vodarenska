@@ -23,5 +23,8 @@ Custom component pro Home Assistant – integrace s VAS Vodárenská API.
 - Automaticky vytvoří senzory pro všechny měřiče vodomeru.
 - Aktualizace hodnot probíhá jednou za 5 minut, ovšem nové hodnoty se do API načítají jednou za 6 hodin. 
 
+## HelloWorld
+- Existuje a je nadefinovany sensor pro HelloWorld, ktery je ovsem deaktivovany (disabled). Slouží především pro debug při problémy s API. 
+
 ## Hlášení chyb
 Nejlépe přes https://github.com/petos/ha-vodarenska/issues
