@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed, CoordinatorEntity
 
 from .const import DOMAIN
-from .api import VodarenskaAPI
+from .api import VodarenskaAPI, VodarenskaIntegration
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     sensors = []
 
-    # HelloWorld sensor – koordinátor pouze jednou
+    # HelloWorld – vlastní coordinator
     hello_coordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
@@ -42,50 +42,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         _LOGGER.error("Error fetching customer data: %s", e)
         customer_data_list = []
 
-    if not customer_data_list:
-        _LOGGER.debug("No customer data available, only HelloWorld sensor will be added")
-    else:
+    if customer_data_list:
+        integration = VodarenskaIntegration(hass, api, customer_data_list)
+        meters_coordinator = DataUpdateCoordinator(
+            hass,
+            _LOGGER,
+            name="meters_all",
+            update_method=integration.async_update_all_meters,
+            update_interval=timedelta(minutes=5),
+        )
+
+        await meters_coordinator.async_config_entry_first_refresh()
+
         for customer in customer_data_list:
             for meter in customer.get("INSTALLED_METERS", []):
                 meter_id = meter.get("METER_ID")
                 if not meter_id:
                     continue
 
-                # Vytvoříme coordinator pro každý meter, update se bude provádět asynchronně
-                async def async_update_data(meter_id=meter_id, meter=meter):
-                    try:
-                        date_to = meter.get("METER_DATE_TO") or datetime.now().date().isoformat()
-                        date_from = (datetime.strptime(date_to, "%Y-%m-%d").date() - timedelta(days=1)).isoformat()
-                        #date_from = meter.get("METER_DATE_FROM").split("T")[0]
-                        profile_data = await hass.async_add_executor_job(
-                            api.get_smartdata_profile, meter_id, date_from, date_to
-                        )
-                        if profile_data:
-                            last_entry = profile_data[-1]
-                            # uložíme DATE z API jako last_update
-                            last_entry["_api_last_update"] = last_entry.get("DATE")
-                            return last_entry
-                        _LOGGER.debug("No profile data for meter %s", meter_id)
-                        return {}
-                    except Exception as e:
-                        raise UpdateFailed(f"Error fetching profile data for meter {meter_id}: {e}")
+                meter_sensor = VodarenskaMeterSensor(meters_coordinator, api, meter, customer)
+                installed_sensor = VodarenskaInstalledSensor(meters_coordinator, api, meter, customer)
+                temperature_sensor = VodarenskaTemperatureSensor(meters_coordinator, api, meter, customer)
 
-                coordinator = DataUpdateCoordinator(
-                    hass,
-                    _LOGGER,
-                    name=f"meter_{meter_id}",
-                    update_method=async_update_data,
-                    update_interval=timedelta(minutes=5),
-                )
-
-                # nevykonáváme await coordinator.async_refresh() – necháme HA provést první update
-                meter_sensor = VodarenskaMeterSensor(coordinator, api, meter, customer)
-                installed_sensor = VodarenskaInstalledSensor(coordinator, api, meter, customer)
-                temperature_sensor = VodarenskaTemperatureSensor(coordinator, api, meter, customer)
-
-                sensors.append(meter_sensor)
-                sensors.append(installed_sensor)
-                sensors.append(temperature_sensor)
+                sensors.extend([meter_sensor, installed_sensor, temperature_sensor])
 
                 _LOGGER.debug("Meter sensor prepared: %s", meter_sensor._attr_unique_id)
                 _LOGGER.debug("Installed sensor prepared: %s", installed_sensor._attr_unique_id)
@@ -119,6 +98,7 @@ class VasHelloWorldSensor(CoordinatorEntity, SensorEntity):
             attrs["last_seen"] = datetime.now().isoformat()
         return attrs
 
+
 class VodarenskaMeterSensor(CoordinatorEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.WATER
     _attr_native_unit_of_measurement = "m³"
@@ -148,11 +128,9 @@ class VodarenskaMeterSensor(CoordinatorEntity, SensorEntity):
         self._attr_name = f"VAS Vodomer {self._meter_id}"
         self._attr_unique_id = f"ha_vodarenska_{self._meter_id}"
 
-
     @property
     def native_value(self):
-        """Vrací poslední stav z coordinátora"""
-        last = self.coordinator.data
+        last = self.coordinator.data.get(self._meter_id)
         if last and "STATE" in last:
             try:
                 value = float(last["STATE"])
@@ -167,9 +145,10 @@ class VodarenskaMeterSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self):
         attrs = dict(self._attrs)
-        if self.coordinator.data:
+        last = self.coordinator.data.get(self._meter_id)
+        if last:
             attrs["last_seen"] = datetime.now().isoformat()
-            attrs["last_update"] = self.coordinator.data.get("_api_last_update")
+            attrs["last_update"] = last.get("_api_last_update") or last.get("DATE")
         return attrs
 
     @property
@@ -193,7 +172,6 @@ class VodarenskaInstalledSensor(CoordinatorEntity, BinarySensorEntity):
         self._meter_number = meter_data.get("METER_NUMBER", str(self._meter_id))
         self._attr_name = f"VAS Vodomer {self._meter_id} Installed"
         self._attr_unique_id = f"ha_vodarenska_{self._meter_id}_installed"
-        # přidáme self._attrs
         self._attrs = {
             "customer_id": customer_data.get("CP_ID"),
             "meter_date_from": meter_data.get("METER_DATE_FROM"),
@@ -203,20 +181,17 @@ class VodarenskaInstalledSensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool:
-        """Vrací True, pokud meter stále nainstalován (METER_DATE_TO je None)"""
-        last_meter_data = self.coordinator.data
-        if not last_meter_data:
-            _LOGGER.debug("No coordinator data yet for meter %s", self._meter_id)
-            return False
-        date_to = last_meter_data.get("METER_DATE_TO")
+        last = self.coordinator.data.get(self._meter_id)
+        date_to = (last.get("METER_DATE_TO") if last else None) or self._attrs.get("meter_date_to")
         return date_to in (None, "None", "null")
 
     @property
     def extra_state_attributes(self):
         attrs = dict(self._attrs)
-        if self.coordinator.data:
+        last = self.coordinator.data.get(self._meter_id)
+        if last:
             attrs["last_seen"] = datetime.now().isoformat()
-            attrs["last_update"] = self.coordinator.data.get("_api_last_update")
+            attrs["last_update"] = last.get("_api_last_update") or last.get("DATE")
         return attrs
 
     @property
@@ -252,8 +227,7 @@ class VodarenskaTemperatureSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
-        """Vrací HEAT hodnotu (teplota) z coordinátora"""
-        last = self.coordinator.data
+        last = self.coordinator.data.get(self._meter_id)
         if last and "HEAT" in last:
             try:
                 value = float(last["HEAT"])
@@ -262,15 +236,16 @@ class VodarenskaTemperatureSensor(CoordinatorEntity, SensorEntity):
             except (ValueError, TypeError):
                 _LOGGER.warning("Meter %s returned invalid HEAT: %s", self._meter_id, last.get("HEAT"))
                 return None
-        _LOGGER.debug("Meter %s has no HEAT in coordinator data", self._meter_id)
+        _LOGGER.debug("Meter %s has no HEAT in coordinator data; last: %s", self._meter_id, last)
         return None
 
     @property
     def extra_state_attributes(self):
         attrs = dict(self._attrs)
-        if self.coordinator.data:
+        last = self.coordinator.data.get(self._meter_id)
+        if last:
             attrs["last_seen"] = datetime.now().isoformat()
-            attrs["last_update"] = self.coordinator.data.get("_api_last_update")
+            attrs["last_update"] = last.get("_api_last_update") or last.get("DATE")
         return attrs
 
     @property

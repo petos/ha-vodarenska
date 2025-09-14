@@ -1,3 +1,7 @@
+from homeassistant.core import HomeAssistant
+from datetime import datetime, timedelta
+
+
 import requests
 import time
 from datetime import datetime
@@ -104,4 +108,33 @@ class VodarenskaAPI:
         resp.raise_for_status()
         return resp.json()
 
+class VodarenskaIntegration:
+    def __init__(self, hass: HomeAssistant, api: VodarenskaAPI, customers: list):
+        self.hass = hass
+        self.api = api
+        self.customers = customers
 
+    async def async_update_all_meters(self):
+        all_data = {}
+        for customer in self.customers:
+            for meter in customer.get("INSTALLED_METERS", []):
+                meter_id = meter.get("METER_ID")
+                if not meter_id:
+                    continue
+                try:
+                    date_to = meter.get("METER_DATE_TO") or datetime.now().date().isoformat()
+                    date_from = (datetime.strptime(date_to, "%Y-%m-%d").date() - timedelta(days=1)).isoformat()
+                    profile_data = await self.hass.async_add_executor_job(
+                        self.api.get_smartdata_profile, meter_id, date_from, date_to
+                    )
+                    if profile_data:
+                        last_entry = profile_data[-1]
+                        last_entry["_api_last_update"] = last_entry.get("DATE")
+                        all_data[meter_id] = last_entry
+                    else:
+                        _LOGGER.warning("No profile data found for meter %s", meter_id)
+                        all_data[meter_id] = {}
+                except Exception as e:
+                    _LOGGER.error("Error fetching profile data for meter %s: %s", meter_id, e)
+                    all_data[meter_id] = {}
+        return all_data
