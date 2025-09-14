@@ -1,0 +1,27 @@
+- name: bug
+  color: ff0000
+  description: "Something isn't working"
+
+- name: enhancement
+  color: 00ff00
+  description: "New feature or request"
+
+- name: question
+  color: 0000ff
+  description: "Further information is requested"
+
+- name: documentation
+  color: ffbf00
+  description: "Improvements or additions to documentation"
+
+- name: invalid
+  color: 000000
+  description: "This issue or pull request is invalid"
+
+- name: help wanted
+  color: 008080
+  description: "Extra attention is needed"
+
+- name: wontfix
+  color: 808080
+  description: "This will not be worked on"
