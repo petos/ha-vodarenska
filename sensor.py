@@ -87,6 +87,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
 
 class VasHelloWorldSensor(SensorEntity):
+    entity_registry_enabled_default = False
+
     def __init__(self, api: VodarenskaAPI):
         self._api = api
         self._attr_name = "VAS HelloWorld"
