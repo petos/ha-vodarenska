@@ -22,8 +22,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     sensors = []
 
-    # HelloWorld sensor – jednoduchý sensor, žádný coordinator
-    hello_sensor = VasHelloWorldSensor(api)
+    # HelloWorld sensor – koordinátor pouze jednou
+    hello_coordinator = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name="helloworld",
+        update_method=lambda: hass.async_add_executor_job(api.hello_world),
+        update_interval=timedelta(minutes=5),
+    )
+    await hello_coordinator.async_config_entry_first_refresh()
+    hello_sensor = VasHelloWorldSensor(hello_coordinator, api)
     sensors.append(hello_sensor)
     _LOGGER.debug("HelloWorld sensor prepared: %s", hello_sensor._attr_unique_id)
 
@@ -57,7 +65,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                             # uložíme DATE z API jako last_update
                             last_entry["_api_last_update"] = last_entry.get("DATE")
                             return last_entry
-                        return None
+                        _LOGGER.debug("No profile data for meter %s", meter_id)
+                        return {}
                     except Exception as e:
                         raise UpdateFailed(f"Error fetching profile data for meter {meter_id}: {e}")
 
@@ -86,37 +95,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async_add_entities(sensors, True)
 
 
-class VasHelloWorldSensor(SensorEntity):
+class VasHelloWorldSensor(CoordinatorEntity, SensorEntity):
     entity_registry_enabled_default = False
+    _attr_name = "VAS HelloWorld"
+    _attr_unique_id = "vas_helloworld"
+    _attr_icon = "mdi:hand-wave"
 
-    def __init__(self, api: VodarenskaAPI):
+    def __init__(self, coordinator: DataUpdateCoordinator, api):
+        super().__init__(coordinator)
         self._api = api
-        self._attr_name = "VAS HelloWorld"
-        self._attr_unique_id = "vas_helloworld"
-        self._state = None
         self._attrs = {}
-        self._attr_icon = "mdi:hand-wave"
+        self._state = None
 
     @property
     def native_value(self):
-        return self._state
+        return self.coordinator.data.get("response") if self.coordinator.data else None
 
     @property
     def extra_state_attributes(self):
-        return self._attrs
-
-    async def async_update(self):
-        try:
-            data = await self.hass.async_add_executor_job(self._api.hello_world)
-            self._state = data.get("response") if isinstance(data, dict) else str(data)
-            self._attrs = {
-                "last_update": (data.get("last_update") if isinstance(data, dict) else None)
-                or datetime.now().isoformat()
-            }
-            _LOGGER.debug("HelloWorld sensor updated: %s", self._state)
-        except Exception as e:
-            _LOGGER.error("Error updating HelloWorld sensor: %s", e)
-
+        attrs = dict(self._attrs)
+        if self.coordinator.data:
+            attrs["last_update"] = self.coordinator.data.get("last_update") or datetime.now().isoformat()
+            attrs["last_seen"] = datetime.now().isoformat()
+        return attrs
 
 class VodarenskaMeterSensor(CoordinatorEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.WATER
@@ -154,9 +155,13 @@ class VodarenskaMeterSensor(CoordinatorEntity, SensorEntity):
         last = self.coordinator.data
         if last and "STATE" in last:
             try:
-                return float(last["STATE"])
+                value = float(last["STATE"])
+                _LOGGER.debug("Meter %s native_value=%s", self._meter_id, value)
+                return value
             except (ValueError, TypeError):
+                _LOGGER.warning("Meter %s returned invalid STATE: %s", self._meter_id, last.get("STATE"))
                 return None
+        _LOGGER.debug("Meter %s has no STATE in coordinator data", self._meter_id)
         return None
 
     @property
@@ -201,6 +206,7 @@ class VodarenskaInstalledSensor(CoordinatorEntity, BinarySensorEntity):
         """Vrací True, pokud meter stále nainstalován (METER_DATE_TO je None)"""
         last_meter_data = self.coordinator.data
         if not last_meter_data:
+            _LOGGER.debug("No coordinator data yet for meter %s", self._meter_id)
             return False
         date_to = last_meter_data.get("METER_DATE_TO")
         return date_to in (None, "None", "null")
@@ -250,9 +256,13 @@ class VodarenskaTemperatureSensor(CoordinatorEntity, SensorEntity):
         last = self.coordinator.data
         if last and "HEAT" in last:
             try:
-                return float(last["HEAT"])
+                value = float(last["HEAT"])
+                _LOGGER.debug("Meter %s native_value=%s (temperature)", self._meter_id, value)
+                return value
             except (ValueError, TypeError):
+                _LOGGER.warning("Meter %s returned invalid HEAT: %s", self._meter_id, last.get("HEAT"))
                 return None
+        _LOGGER.debug("Meter %s has no HEAT in coordinator data", self._meter_id)
         return None
 
     @property
