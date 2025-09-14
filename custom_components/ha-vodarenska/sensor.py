@@ -64,7 +64,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                 installed_sensor = VodarenskaInstalledSensor(meters_coordinator, api, meter, customer)
                 temperature_sensor = VodarenskaTemperatureSensor(meters_coordinator, api, meter, customer)
 
-                sensors.extend([meter_sensor, installed_sensor, temperature_sensor])
+                sensors.append(meter_sensor)
+                sensors.append(installed_sensor)
+                sensors.append(temperature_sensor)
 
                 _LOGGER.debug("Meter sensor prepared: %s", meter_sensor._attr_unique_id)
                 _LOGGER.debug("Installed sensor prepared: %s", installed_sensor._attr_unique_id)
