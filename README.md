@@ -3,10 +3,19 @@
 Custom component pro Home Assistant – integrace s VAS Vodárenská API.
 
 ## Instalace
-- Přes HACS nebo ručně:
+- Přes HACS
+  - Nainstalujte HACS
+  - V HACS rozhraní kliknout v pravém horním rohu na tři svislé tečky
+  - Kliknout na Vlastní repozitáře
+  - Přidat adresu `https://github.com/petos/ha-vodarenska` a typ `Integrace`
+  - Po přidání repozitáře vyhledat `Vodárenská Vodoměr (VAS API)` a nainstalovat
+  - Po restartu Home Assistenta přidat jako Integraci v Nastavení -> Integrace
+- Ručně:
   - `/config/custom_components/ha_vodarenska/` + všechny soubory
 - Žádost o přístup k API dle dokumentace: https://vodarenska.cz/download/informace-o-api-smart-pro-zakaznika-vas/
 - Poté, co do mailu dostanete přihlašovací údaje, stačí je vyplnit do UI při konfiguraci. 
+
+
 
 ## Senzory
 - `ha_vodarenska_<meter_id>`: stav vodomeru
