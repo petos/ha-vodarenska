@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Připojení k VAS Vodárenská",
+        "description": "Zadejte přihlašovací údaje k API.",
+        "data": {
+          "username": "Uživatelské jméno",
+          "password": "Heslo",
+          "client_id": "Client ID",
+          "client_secret": "Client Secret"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nepodařilo se připojit k API"
+    },
+    "abort": {
+      "already_configured": "Tento účet je již nastaven"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "helloworld": {
+        "name": "HelloWorld senzor"
+      },
+      "meter": {
+        "name": "Vodomer {meter_id}"
+      },
+      "temperature": {
+        "name": "Vodomer {meter_id} Teplota"
+      }
+    },
+    "binary_sensor": {
+      "installed": {
+        "name": "Vodomer {meter_id} Instalován"
+      }
+    }
+  }
+}

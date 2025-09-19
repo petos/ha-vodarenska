@@ -78,9 +78,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
 class VasHelloWorldSensor(CoordinatorEntity, SensorEntity):
     entity_registry_enabled_default = False
-    _attr_name = "VAS HelloWorld"
+#    _attr_name = "VAS HelloWorld"
     _attr_unique_id = "vas_helloworld"
     _attr_icon = "mdi:hand-wave"
+    _attr_translation_key = "helloworld"
 
     def __init__(self, coordinator: DataUpdateCoordinator, api):
         super().__init__(coordinator)
@@ -127,7 +128,8 @@ class VodarenskaMeterSensor(CoordinatorEntity, SensorEntity):
             "radio_date_to": meter_data.get("RADIO_DATE_TO"),
             "mp_type": meter_data.get("MP_TYPE"),
         }
-        self._attr_name = f"VAS Vodomer {self._meter_id}"
+        #self._attr_name = f"VAS Vodomer {self._meter_id}"
+        _attr_translation_key = "meter"
         self._attr_unique_id = f"ha_vodarenska_{self._meter_id}"
 
     @property
@@ -172,7 +174,8 @@ class VodarenskaInstalledSensor(CoordinatorEntity, BinarySensorEntity):
         self._api = api
         self._meter_id = meter_data["METER_ID"]
         self._meter_number = meter_data.get("METER_NUMBER", str(self._meter_id))
-        self._attr_name = f"VAS Vodomer {self._meter_id} Installed"
+        #self._attr_name = f"VAS Vodomer {self._meter_id} Installed"
+        _attr_translation_key = "installed"
         self._attr_unique_id = f"ha_vodarenska_{self._meter_id}_installed"
         self._attrs = {
             "customer_id": customer_data.get("CP_ID"),
@@ -225,6 +228,7 @@ class VodarenskaTemperatureSensor(CoordinatorEntity, SensorEntity):
             "radio_number": meter_data.get("RADIO_NUMBER"),
         }
         self._attr_name = f"VAS Vodomer {self._meter_id} Temperature"
+        _attr_translation_key = "temperature"
         self._attr_unique_id = f"ha_vodarenska_{self._meter_id}_temperature"
 
     @property

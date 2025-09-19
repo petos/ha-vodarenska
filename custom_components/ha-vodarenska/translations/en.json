@@ -1,0 +1,20 @@
+{
+  "entity": {
+    "sensor": {
+      "helloworld": {
+        "name": "Hello World Sensor"
+      },
+      "meter": {
+        "name": "Water Meter {meter_id}"
+      },
+      "temperature": {
+        "name": "Water Meter {meter_id} Temperature"
+      }
+    },
+    "binary_sensor": {
+      "installed": {
+        "name": "Water Meter {meter_id} Installed"
+      }
+    }
+  }
+}

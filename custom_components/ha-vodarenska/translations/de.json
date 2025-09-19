@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Verbindung zu VAS Vodárenská",
+        "description": "Geben Sie Ihre API-Anmeldedaten ein.",
+        "data": {
+          "username": "Benutzername",
+          "password": "Passwort",
+          "client_id": "Client ID",
+          "client_secret": "Client Secret"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zur API fehlgeschlagen"
+    },
+    "abort": {
+      "already_configured": "Dieses Konto ist bereits konfiguriert"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "helloworld": {
+        "name": "HelloWorld Sensor"
+      },
+      "meter": {
+        "name": "Wasserzähler {meter_id}"
+      },
+      "temperature": {
+        "name": "Wasserzähler {meter_id} Temperatur"
+      }
+    },
+    "binary_sensor": {
+      "installed": {
+        "name": "Wasserzähler {meter_id} Installiert"
+      }
+    }
+  }
+}
