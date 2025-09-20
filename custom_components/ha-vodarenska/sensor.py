@@ -106,7 +106,7 @@ class VodarenskaMeterSensor(CoordinatorEntity, SensorEntity):
     _attr_native_unit_of_measurement = "m³"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_icon = "mdi:water"
-    #_attr_translation_key = "meter"
+    _attr_translation_key = "meter"
     _attr_has_entity_name = True
 
     def __init__(self, coordinator: DataUpdateCoordinator, api: VodarenskaAPI, meter_data: dict, customer_data: dict):
@@ -129,7 +129,6 @@ class VodarenskaMeterSensor(CoordinatorEntity, SensorEntity):
             "radio_date_to": meter_data.get("RADIO_DATE_TO"),
             "mp_type": meter_data.get("MP_TYPE"),
         }
-        #self._attr_name = f"Meter"
         self._attr_unique_id = f"{self._meter_id}"
 
     @property
@@ -169,13 +168,9 @@ class VodarenskaMeterSensor(CoordinatorEntity, SensorEntity):
             "serial_number": self._meter_number,
         }
 
-    @property
-    def translation_key(self):
-        return "meter"
-
 class VodarenskaInstalledSensor(CoordinatorEntity, BinarySensorEntity):
     _attr_device_class = BinarySensorDeviceClass.PRESENCE
-    #_attr_translation_key = "installed"
+    _attr_translation_key = "installed"
     _attr_has_entity_name = True
 
     def __init__(self, coordinator: DataUpdateCoordinator, api: VodarenskaAPI, meter_data: dict, customer_data: dict):
@@ -221,16 +216,12 @@ class VodarenskaInstalledSensor(CoordinatorEntity, BinarySensorEntity):
             "serial_number": self._meter_number,
         }
 
-    @property
-    def translation_key(self):
-        return "installed"
-
 class VodarenskaTemperatureSensor(CoordinatorEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_native_unit_of_measurement = "°C"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:thermometer"
-    #_attr_translation_key = "temperature"
+    _attr_translation_key = "temperature"
     _attr_has_entity_name = True
 
     def __init__(self, coordinator: DataUpdateCoordinator, api: VodarenskaAPI, meter_data: dict, customer_data: dict):
@@ -283,7 +274,3 @@ class VodarenskaTemperatureSensor(CoordinatorEntity, SensorEntity):
             "model": "Temperature sensor",
             "serial_number": self._meter_number,
         }
-
-    @property
-    def translation_key(self):
-        return "temperature"
