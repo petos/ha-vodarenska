@@ -1,0 +1,10 @@
+{
+  "entity": {
+    "sensor": {
+      "helloworld": { "name": "HelloWorld sensor" },
+      "meter": { "name": "Water meter" },
+      "temperature": { "name": "Temperature" },
+      "installed": { "name": "Installed" }
+    }
+  }
+}
