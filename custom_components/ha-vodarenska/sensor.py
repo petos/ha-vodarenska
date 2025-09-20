@@ -178,7 +178,6 @@ class VodarenskaInstalledSensor(CoordinatorEntity, BinarySensorEntity):
         self._api = api
         self._meter_id = meter_data["METER_ID"]
         self._meter_number = meter_data.get("METER_NUMBER", str(self._meter_id))
-        #self._attr_name = f"Installed"
         self._attr_unique_id = f"{self._meter_id}_installed"
         self._attrs = {
             "customer_id": customer_data.get("CP_ID"),
@@ -235,7 +234,6 @@ class VodarenskaTemperatureSensor(CoordinatorEntity, SensorEntity):
             "meter_date_to": meter_data.get("METER_DATE_TO"),
             "radio_number": meter_data.get("RADIO_NUMBER"),
         }
-        #self._attr_name = f"Temperature"
         self._attr_unique_id = f"{self._meter_id}_temperature"
 
     @property
