@@ -1,7 +1,6 @@
 {
   "name": "Vodárenská Vodoměr (VAS API)",
   "content_in_root": false,
-  "domain": "ha_vodarenska",
   "country": "CZ",
   "homeassistant": "2023.9.0",
   "render_readme": true
