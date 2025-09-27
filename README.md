@@ -19,9 +19,9 @@ Custom component pro Home Assistant – integrace s VAS Vodárenská API.
 
 
 ## Senzory
-- `ha_vodarenska_<meter_id>`: stav vodomeru
-- `ha_vodarenska_<meter_id>_temperature`: teplota vodomeru
-- `ha_vodarenska_<meter_id>_installed`: zda je vodomer nainstalován (binary_sensor)
+- `sensor.vas_vodomer_<meter_id>`: stav vodomeru
+- `sensor.vas_vodomer_<meter_id>_temperature`: teplota vodomeru
+- `sensor.vas_vodomer_<meter_id>_installed`: zda je vodomer nainstalován (binary_sensor)
 
 ### Atributy
 - `last_seen`: kdy HA aktualizoval stav senzoru
