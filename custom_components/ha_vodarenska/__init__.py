@@ -1,4 +1,7 @@
 import logging
+import os
+import shutil
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
@@ -9,8 +12,25 @@ import voluptuous as vol
 _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
+def copy_blueprints(hass: HomeAssistant):
+    src = os.path.join(os.path.dirname(__file__), "blueprints", "automation", DOMAIN)
+    dest = os.path.join(hass.config.path("blueprints", "automation", DOMAIN))
+    
+    if not os.path.exists(src):
+        return  # žádné blueprinty k dispozici
+    
+    if not os.path.exists(dest):
+        shutil.copytree(src, dest)
+    else:
+        # zkopíruj jen nové soubory
+        for file_name in os.listdir(src):
+            src_file = os.path.join(src, file_name)
+            dest_file = os.path.join(dest, file_name)
+            if not os.path.exists(dest_file):
+                shutil.copy2(src_file, dest_file)
 
 async def async_setup(hass: HomeAssistant, config: dict):
+    
     """Zpracování případného YAML setupu (deprecated)."""
     if DOMAIN in config:
         _LOGGER.warning(
@@ -20,6 +40,9 @@ async def async_setup(hass: HomeAssistant, config: dict):
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+    """Zpristupnit blueprint"""
+    copy_blueprints(hass)
+
     """Nastavení integrace přes Config Entry (UI)."""
     conf = entry.data
 
