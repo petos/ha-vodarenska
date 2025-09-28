@@ -4,6 +4,9 @@ Custom component pro Home Assistant – integrace s VAS Vodárenská API.
 
 ## Instalace
 - Přes HACS
+
+  [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Petos&repository=https%3A%2F%2Fgithub.com%2Fpetos%2Fha-vodarenska)
+
   - Nainstalujte HACS
   - V HACS rozhraní kliknout v pravém horním rohu na tři svislé tečky
   - Kliknout na Vlastní repozitáře
@@ -15,12 +18,10 @@ Custom component pro Home Assistant – integrace s VAS Vodárenská API.
 - Žádost o přístup k API dle dokumentace: https://vodarenska.cz/download/informace-o-api-smart-pro-zakaznika-vas/
 - Poté, co do mailu dostanete přihlašovací údaje, stačí je vyplnit do UI při konfiguraci. 
 
-
-
 ## Senzory
-- `ha_vodarenska_<meter_id>`: stav vodomeru
-- `ha_vodarenska_<meter_id>_temperature`: teplota vodomeru
-- `ha_vodarenska_<meter_id>_installed`: zda je vodomer nainstalován (binary_sensor)
+- `sensor.vas_vodomer_<meter_id>`: stav vodomeru
+- `sensor.vas_vodomer_<meter_id>_temperature`: teplota vodomeru
+- `sensor.vas_vodomer_<meter_id>_installed`: zda je vodomer nainstalován (binary_sensor)
 
 ### Atributy
 - `last_seen`: kdy HA aktualizoval stav senzoru
@@ -31,6 +32,12 @@ Custom component pro Home Assistant – integrace s VAS Vodárenská API.
 - Přes UI konfiguraci – zadání uživatelského jména a hesla.
 - Automaticky vytvoří senzory pro všechny měřiče vodomeru.
 - Aktualizace hodnot probíhá jednou za 5 minut, ovšem nové hodnoty se do API načítají jednou za 6 hodin. 
+
+## Blueprint pro nízkou teplotu
+Mezi blueprinty (Nastavení -> Automatizace a scény -> Šablony) se po instalaci (a restartu HA) objeví nová šablona "Spuštění akce při nízké teplotě u vodoměru".
+Váš chytrý vodoměr zároveň monitoruje teplotu v okolí vodoměru. Pokud klesne pod nastavenou teplotu, je možné spustit akci. 
+Definici akce nechávám na vás - ať už prostá notifikace, nebo třeba i zapnutí topení, máte-li instalováno? 
+Na výběr máte teploměry poskytované integrací, aby byla konfigurace pokud možno co nejjednodušší. 
 
 ## HelloWorld
 - Existuje a je nadefinovany sensor pro HelloWorld, ktery je ovsem deaktivovany (disabled). Slouží především pro debug při problémy s API. 
