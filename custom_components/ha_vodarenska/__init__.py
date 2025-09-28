@@ -52,7 +52,6 @@ async def async_setup(hass: HomeAssistant, config: dict):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Zpristupnit blueprint"""
     copy_blueprints(hass)
-    hass.async_create_task(hass.services.async_call("blueprint", "reload"))
     """Nastavení integrace přes Config Entry (UI)."""
     conf = entry.data
 
