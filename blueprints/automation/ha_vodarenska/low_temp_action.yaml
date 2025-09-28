@@ -1,10 +1,10 @@
 blueprint:
-  name: "Spuštění akce při nízké teplotě"
+  name: "Spuštění akce při nízké teplotě u vodoměru"
   description: >
     Pokud teplota z vybraného senzoru klesne pod nastavenou hranici,
     spustí se zvolená akce.
   domain: automation
-  author: "petos / ha-vodarenska"
+  author: "@petos"
   source_url: "https://github.com/petos/ha-vodarenska"
 
   input:
