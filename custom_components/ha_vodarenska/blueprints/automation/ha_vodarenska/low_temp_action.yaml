@@ -1,0 +1,44 @@
+blueprint:
+  name: "Spuštění akce při nízké teplotě"
+  description: >
+    Pokud teplota z vybraného senzoru klesne pod nastavenou hranici,
+    spustí se zvolená akce.
+  domain: automation
+  author: "petos / ha-vodarenska"
+  source_url: "https://github.com/petos/ha-vodarenska"
+
+  input:
+    temperature_sensor:
+      name: Teplotní senzor z integrace ha_vodarenska
+      description: Vyber senzor, který poskytuje teplotu.
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
+          integration: ha_vodarenska
+
+    threshold:
+      name: Hranice teploty
+      description: Pod touto teplotou se spustí akce.
+      default: 3
+      selector:
+        number:
+          min: 0
+          max: 50
+          unit_of_measurement: °C
+          mode: box
+    actions:
+      name: Akce
+      description: Co se má stát, když teplota klesne pod hranici?
+      selector:
+        action: {}
+
+mode: single
+
+trigger:
+  - platform: numeric_state
+    entity_id: !input temperature_sensor
+    below: !input threshold
+
+action:
+  - sequence: !input actions
