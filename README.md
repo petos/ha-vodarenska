@@ -33,12 +33,6 @@ Custom component pro Home Assistant – integrace s VAS Vodárenská API.
 - Automaticky vytvoří senzory pro všechny měřiče vodomeru.
 - Aktualizace hodnot probíhá jednou za 5 minut, ovšem nové hodnoty se do API načítají jednou za 6 hodin. 
 
-## Blueprint pro nízkou teplotu
-Mezi blueprinty (Nastavení -> Automatizace a scény -> Šablony) se po instalaci (a restartu HA) objeví nová šablona "Spuštění akce při nízké teplotě u vodoměru".
-Váš chytrý vodoměr zároveň monitoruje teplotu v okolí vodoměru. Pokud klesne pod nastavenou teplotu, je možné spustit akci. 
-Definici akce nechávám na vás - ať už prostá notifikace, nebo třeba i zapnutí topení, máte-li instalováno? 
-Na výběr máte teploměry poskytované integrací, aby byla konfigurace pokud možno co nejjednodušší. 
-
 ## HelloWorld
 - Existuje a je nadefinovany sensor pro HelloWorld, ktery je ovsem deaktivovany (disabled). Slouží především pro debug při problémy s API. 
 
