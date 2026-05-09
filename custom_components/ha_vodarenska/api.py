@@ -8,6 +8,20 @@ from .const import BASE_URL_CONNECT, BASE_URL_API
 
 _LOGGER = logging.getLogger(__name__)
 
+def to_curl(url, headers=None, params=None):
+    curl = ["curl", "-i", shlex.quote(url)]
+    if params:
+        # Přidáme query string, pokud už není součástí URL
+        from urllib.parse import urlencode, urlsplit, urlunsplit
+
+        split_url = urlsplit(url)
+        query = urlencode(params)
+        new_url = urlunsplit(split_url._replace(query=query))
+        curl = ["curl", "-i", shlex.quote(new_url)]
+    if headers:
+        for k, v in headers.items():
+            curl.extend(["-H", shlex.quote(f"{k}: {v}")])
+    return " ".join(curl)
 
 class VodarenskaAPI:
     def __init__(self, username: str, password: str, client_id: str, client_secret: str):
@@ -56,6 +70,8 @@ class VodarenskaAPI:
 
     def hello_world(self) -> dict:
         url = f"{BASE_URL_API}/HelloWorld"
+        curl_cmd = to_curl(url, headers=self._headers())
+        _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
         resp = requests.get(url, headers=self._headers(), timeout=10)
         resp.raise_for_status()
 
@@ -66,6 +82,8 @@ class VodarenskaAPI:
 
     def get_smartdata_customer(self):
         url = f"{BASE_URL_API}/SmartData/CustomerData"
+        curl_cmd = self._to_curl(url, headers=self._headers(), params=params)
+        _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
         resp = requests.get(url, headers=self._headers(), timeout=10)
         resp.raise_for_status()
         return resp.json()
@@ -84,6 +102,9 @@ class VodarenskaAPI:
             params=params,
             timeout=15,
         )
+
+        curl_cmd = self._to_curl(url, headers=self._headers(), params=params)
+        _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
 
         resp.raise_for_status()
         return resp.json()
