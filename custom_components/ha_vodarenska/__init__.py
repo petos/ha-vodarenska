@@ -1,61 +1,35 @@
 import logging
-import os
-import shutil
-import filecmp
+from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.exceptions import ConfigEntryNotReady
+
 from .const import DOMAIN
 from .api import VodarenskaAPI
-import voluptuous as vol
+from .api import VodarenskaIntegration
 
 _LOGGER = logging.getLogger(__name__)
+
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-def copy_blueprints(hass: HomeAssistant):
-    src = os.path.join(os.path.dirname(__file__), "blueprints", "automation", DOMAIN)
-    dest = os.path.join(hass.config.path("blueprints", "automation", DOMAIN))
+PLATFORMS = ["sensor"]
 
-    if not os.path.exists(src):
-        return  # žádné blueprinty k dispozici
-
-    changed = False
-
-    if not os.path.exists(dest):
-        shutil.copytree(src, dest)
-        changed = True
-    else:
-        # zkopíruj nové soubory a aktualizuj změněné
-        for file_name in os.listdir(src):
-            src_file = os.path.join(src, file_name)
-            dest_file = os.path.join(dest, file_name)
-
-            if not os.path.exists(dest_file) or not filecmp.cmp(src_file, dest_file, shallow=False):
-                shutil.copy2(src_file, dest_file)
-                changed = True
-
-    # pokud se něco změnilo, reload blueprintů
-    if changed:
-        hass.async_create_task(hass.services.async_call("blueprint", "reload"))
 
 async def async_setup(hass: HomeAssistant, config: dict):
-    
-    """Zpracování případného YAML setupu (deprecated)."""
     if DOMAIN in config:
         _LOGGER.warning(
-            "YAML setup for ha_vodarenska is deprecated. Please use the UI config flow."
+            "YAML setup for ha_vodarenska is deprecated. "
+            "Please use the UI config flow."
         )
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    """Zpristupnit blueprint"""
-    copy_blueprints(hass)
-    """Nastavení integrace přes Config Entry (UI)."""
     conf = entry.data
 
-    # Inicializace API klienta
     api = VodarenskaAPI(
         username=conf.get("username"),
         password=conf.get("password"),
@@ -63,21 +37,46 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         client_secret=conf.get("client_secret"),
     )
 
-    # Uložíme API instance do hass.data pro sdílení s ostatními částmi integrace
+    hello_coordinator = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name="helloworld",
+        update_method=lambda: hass.async_add_executor_job(api.hello_world),
+        update_interval=timedelta(minutes=5),
+    )
+
+    integration = VodarenskaIntegration(hass, api)
+
+    meters_coordinator = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name="meters_all",
+        update_method=integration.async_update_all_meters,
+        update_interval=timedelta(minutes=5),
+    )
+
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN]["api"] = api
+    hass.data[DOMAIN][entry.entry_id] = {
+        "api": api,
+        "hello_coordinator": hello_coordinator,
+        "meters_coordinator": meters_coordinator,
+    }
 
-    # Forward entry setups na sensor platformu
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+    try:
+        await hello_coordinator.async_config_entry_first_refresh()
+        await meters_coordinator.async_config_entry_first_refresh()
+    except Exception as err:
+        raise ConfigEntryNotReady(f"Initialization failed: {err}") from err
 
-    _LOGGER.debug("ha_vodarenska entry setup complete")
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
-    """Odstranění integrace při unloadu entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor"])
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
     if unload_ok:
-        hass.data.pop(DOMAIN, None)
-        _LOGGER.debug("ha_vodarenska entry unloaded")
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+
     return unload_ok
