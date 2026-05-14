@@ -83,7 +83,7 @@ class VodarenskaAPI:
 
     def get_smartdata_customer(self):
         url = f"{BASE_URL_API}/SmartData/CustomerData"
-        curl_cmd = self._to_curl(url, headers=self._headers(), params=params)
+        curl_cmd = to_curl(url, headers=self._headers())
         _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
         resp = requests.get(url, headers=self._headers(), timeout=10)
         resp.raise_for_status()
@@ -104,7 +104,7 @@ class VodarenskaAPI:
             timeout=15,
         )
 
-        curl_cmd = self._to_curl(url, headers=self._headers(), params=params)
+        curl_cmd = to_curl(url, headers=self._headers(), params=params)
         _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
 
         resp.raise_for_status()
