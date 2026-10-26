@@ -10,6 +10,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from .const import DOMAIN
 from .api import VodarenskaAPI
 from .api import VodarenskaIntegration
+from .statistics import register_meter_statistic
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,6 +68,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         await meters_coordinator.async_config_entry_first_refresh()
     except Exception as err:
         raise ConfigEntryNotReady(f"Initialization failed: {err}") from err
+
+    for meter_id in meters_coordinator.data:
+        register_meter_statistic(hass, meter_id)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

@@ -145,7 +145,15 @@ class VodarenskaIntegration:
                         date_from,
                         date_to,
                     )
-
+                    _LOGGER.debug(
+                        "Meter %s: query=%s..%s, METER_DATE_TO=%s, records=%d, last_record=%s",
+                        meter_id,
+                        date_from,
+                        date_to,
+                        meter.get("METER_DATE_TO"),
+                        len(profile_data) if profile_data else 0,
+                        profile_data[-1] if profile_data else None,
+                    )
                     if profile_data:
                         last_entry = profile_data[-1]
                         last_entry["_api_last_update"] = last_entry.get("DATE")
