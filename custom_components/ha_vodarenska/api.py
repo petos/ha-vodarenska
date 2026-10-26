@@ -73,15 +73,17 @@ class VodarenskaAPI:
     def _headers(self):
         return {"Authorization": f"Bearer {self._get_token()}"}
 
+    
     def _request_with_auth_retry(
         self,
         url: str,
         params: dict | None = None,
         timeout: int = 10,
+        max_attempts: int = 3,
     ) -> requests.Response:
-        """Make an API request and retry once after HTTP 401."""
+        """Make an API request with a limited number of retries after HTTP 401."""
 
-        for attempt in range(2):
+        for attempt in range(1, max_attempts + 1):
             headers = self._headers()
 
             resp = requests.get(
@@ -97,16 +99,25 @@ class VodarenskaAPI:
             if resp.status_code != 401:
                 return resp
 
-            if attempt == 0:
+            if attempt < max_attempts:
                 _LOGGER.warning(
-                    "API returned HTTP 401; refreshing Bearer token "
-                    "and retrying the request"
+                    "API returned HTTP 401 (attempt %s/%s); "
+                    "refreshing Bearer token and retrying",
+                    attempt,
+                    max_attempts,
                 )
                 self._token = None
                 self._token_expiry = 0
+            else:
+                _LOGGER.error(
+                    "API returned HTTP 401 after %s attempts; giving up",
+                    max_attempts,
+                )
+                resp.raise_for_status()
 
-        resp.raise_for_status()
-        return resp
+        # Defensive fallback; normally unreachable.
+        raise RuntimeError("API request failed without an HTTP response")
+
 
     def hello_world(self) -> dict:
         url = f"{BASE_URL_API}/HelloWorld"
