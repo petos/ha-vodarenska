@@ -10,7 +10,8 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from .const import DOMAIN
 from .api import VodarenskaAPI
 from .api import VodarenskaIntegration
-from .statistics import register_meter_statistic
+from .statistics import register_meter_statistic, async_import_full_history
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,6 +74,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         register_meter_statistic(hass, meter_id)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    async def async_import_full_history_handler(call):
+        """Handle the full history import service."""
+        await async_import_full_history(hass, call)
+
+    hass.services.async_register(
+        DOMAIN,
+        "import_full_history",
+        async_import_full_history_handler,
+    )
 
     return True
 

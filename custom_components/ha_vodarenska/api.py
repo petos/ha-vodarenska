@@ -90,7 +90,7 @@ class VodarenskaAPI:
         resp.raise_for_status()
         return resp.json()
 
-    def get_smartdata_profile(self, meter_id: str, date_from: str, date_to: str):
+    def get_smartdata_profile(self, meter_id: str, date_from: str, date_to: str, timeout: int = 15):
         url = f"{BASE_URL_API}/SmartData/ProfileData"
         params = {
             "METERID": meter_id,
@@ -102,7 +102,7 @@ class VodarenskaAPI:
             url,
             headers=self._headers(),
             params=params,
-            timeout=15,
+            timeout=timeout,
         )
 
         curl_cmd = to_curl(url, headers=self._headers(), params=params)
@@ -145,6 +145,7 @@ class VodarenskaIntegration:
                         meter_id,
                         date_from,
                         date_to,
+                        15,
                     )
                     _LOGGER.debug(
                         "Meter %s: query=%s..%s, METER_DATE_TO=%s, records=%d, last_record=%s",

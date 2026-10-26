@@ -1,18 +1,12 @@
 import logging
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
-
-from homeassistant.components.recorder.models import (
-    StatisticMeanType,
-    StatisticMetaData,
-)
-from homeassistant.components.recorder.statistics import (
-    async_add_external_statistics,
-)
+from homeassistant.components.recorder.models import StatisticMeanType,StatisticMetaData
+from homeassistant.components.recorder.statistics import async_add_external_statistics
 from homeassistant.const import UnitOfTemperature, UnitOfVolume
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant,ServiceCall
 from homeassistant.util.unit_conversion import TemperatureConverter, VolumeConverter
-
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 
@@ -178,3 +172,111 @@ def import_meter_profile_statistics(
         len(meter_stats),
         len(temperature_stats),
     )
+
+async def async_import_full_history(
+    hass: HomeAssistant,
+    call: ServiceCall,
+) -> None:
+    """Import complete available history in 30-day batches."""
+
+    entries = hass.config_entries.async_entries(DOMAIN)
+
+    for config_entry in entries:
+        data = hass.data[DOMAIN].get(config_entry.entry_id)
+        if not data:
+            continue
+
+        api = data["api"]
+        meters = data["meters_coordinator"].data
+        date_to = dt_util.now().date()
+
+        for meter_id, meter_data in meters.items():
+            meter = meter_data.get("meter", {})
+            date_from_value = meter.get("METER_DATE_FROM")
+
+            if not date_from_value:
+                _LOGGER.warning(
+                    "Cannot import full history for meter %s: "
+                    "METER_DATE_FROM is missing",
+                    meter_id,
+                )
+                continue
+
+            try:
+                # METER_DATE_FROM may contain a date or a timestamp.
+                date_from = date.fromisoformat(
+                    str(date_from_value)[:10]
+                )
+
+                if date_from > date_to:
+                    _LOGGER.warning(
+                        "Cannot import full history for meter %s: "
+                        "start date %s is in the future",
+                        meter_id,
+                        date_from,
+                    )
+                    continue
+
+                _LOGGER.info(
+                    "Starting full history import for meter %s: %s to %s",
+                    meter_id,
+                    date_from,
+                    date_to,
+                )
+
+                batch_start = date_from
+                total_records = 0
+
+                while batch_start <= date_to:
+                    # Each batch covers at most 30 days.
+                    batch_end = min(
+                        batch_start + timedelta(days=29),
+                        date_to,
+                    )
+
+                    _LOGGER.info(
+                        "Importing meter %s, batch %s to %s",
+                        meter_id,
+                        batch_start,
+                        batch_end,
+                    )
+
+                    profile_data = await hass.async_add_executor_job(
+                        api.get_smartdata_profile,
+                        str(meter_id),
+                        batch_start.isoformat(),
+                        batch_end.isoformat(),
+                        180,
+                    )
+
+                    if profile_data:
+                        import_meter_profile_statistics(
+                            hass,
+                            str(meter_id),
+                            profile_data,
+                        )
+                        total_records += len(profile_data)
+                    else:
+                        _LOGGER.warning(
+                            "Full history import returned an empty result for meter %s, "
+                            "period %s to %s",
+                            meter_id,
+                            batch_start,
+                            batch_end,
+                        )
+
+                    # The boundary date is included in both requests.
+                    # Re-importing the same statistic timestamp is safe.
+                    batch_start = batch_end
+
+                _LOGGER.info(
+                    "Full history import submitted for meter %s: %d records",
+                    meter_id,
+                    total_records,
+                )
+
+            except Exception:
+                _LOGGER.exception(
+                    "Full history import failed for meter %s",
+                    meter_id,
+                )
