@@ -4,6 +4,7 @@ import requests
 import shlex
 
 from datetime import datetime, timedelta
+from homeassistant.core import HomeAssistant
 
 from .const import BASE_URL_CONNECT, BASE_URL_API
 from .statistics import import_meter_profile_statistics
@@ -22,6 +23,8 @@ def to_curl(url, headers=None, params=None):
         curl = ["curl", "-i", shlex.quote(new_url)]
     if headers:
         for k, v in headers.items():
+            if k.lower() == "authorization":
+                v = "Bearer <REDACTED>"
             curl.extend(["-H", shlex.quote(f"{k}: {v}")])
     return " ".join(curl)
 
@@ -70,11 +73,44 @@ class VodarenskaAPI:
     def _headers(self):
         return {"Authorization": f"Bearer {self._get_token()}"}
 
+    def _request_with_auth_retry(
+        self,
+        url: str,
+        params: dict | None = None,
+        timeout: int = 10,
+    ) -> requests.Response:
+        """Make an API request and retry once after HTTP 401."""
+
+        for attempt in range(2):
+            headers = self._headers()
+
+            resp = requests.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=timeout,
+            )
+
+            curl_cmd = to_curl(url, headers=headers, params=params)
+            _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
+
+            if resp.status_code != 401:
+                return resp
+
+            if attempt == 0:
+                _LOGGER.warning(
+                    "API returned HTTP 401; refreshing Bearer token "
+                    "and retrying the request"
+                )
+                self._token = None
+                self._token_expiry = 0
+
+        resp.raise_for_status()
+        return resp
+
     def hello_world(self) -> dict:
         url = f"{BASE_URL_API}/HelloWorld"
-        curl_cmd = to_curl(url, headers=self._headers())
-        _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
-        resp = requests.get(url, headers=self._headers(), timeout=10)
+        resp = self._request_with_auth_retry(url, timeout=10)
         resp.raise_for_status()
 
         return {
@@ -84,9 +120,7 @@ class VodarenskaAPI:
 
     def get_smartdata_customer(self):
         url = f"{BASE_URL_API}/SmartData/CustomerData"
-        curl_cmd = to_curl(url, headers=self._headers())
-        _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
-        resp = requests.get(url, headers=self._headers(), timeout=10)
+        resp = self._request_with_auth_retry(url, timeout=10)
         resp.raise_for_status()
         return resp.json()
 
@@ -98,16 +132,11 @@ class VodarenskaAPI:
             "dateTo": date_to,
         }
 
-        resp = requests.get(
+        resp = self._request_with_auth_retry(
             url,
-            headers=self._headers(),
             params=params,
             timeout=timeout,
         )
-
-        curl_cmd = to_curl(url, headers=self._headers(), params=params)
-        _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
-
         resp.raise_for_status()
         return resp.json()
 
