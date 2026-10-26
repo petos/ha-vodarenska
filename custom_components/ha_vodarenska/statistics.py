@@ -265,6 +265,9 @@ async def async_import_full_history(
                             batch_end,
                         )
 
+                    if batch_end >= date_to:
+                        break
+
                     # The boundary date is included in both requests.
                     # Re-importing the same statistic timestamp is safe.
                     batch_start = batch_end
