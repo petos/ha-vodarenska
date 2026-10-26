@@ -11,7 +11,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-
+_full_history_import_running = False
 
 def get_meter_statistic_id(meter_id: str) -> str:
     """Return the external statistic ID for a water meter."""
@@ -174,6 +174,31 @@ def import_meter_profile_statistics(
     )
 
 async def async_import_full_history(
+    hass: HomeAssistant,
+    call: ServiceCall,
+) -> None:
+    """Start full history import in the background."""
+
+    global _full_history_import_running
+
+    if _full_history_import_running:
+        _LOGGER.warning(
+            "Full history import is already running; ignoring new request"
+        )
+        return
+
+    _full_history_import_running = True
+
+    async def run_import():
+        global _full_history_import_running
+        try:
+            await _async_run_full_history_import(hass, call)
+        finally:
+            _full_history_import_running = False
+
+    hass.async_create_task(run_import())
+
+async def _async_run_full_history_import(
     hass: HomeAssistant,
     call: ServiceCall,
 ) -> None:

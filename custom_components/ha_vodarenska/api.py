@@ -4,6 +4,7 @@ import requests
 import shlex
 
 from datetime import datetime, timedelta
+from homeassistant.core import HomeAssistant
 
 from .const import BASE_URL_CONNECT, BASE_URL_API
 from .statistics import import_meter_profile_statistics
@@ -22,6 +23,8 @@ def to_curl(url, headers=None, params=None):
         curl = ["curl", "-i", shlex.quote(new_url)]
     if headers:
         for k, v in headers.items():
+            if k.lower() == "authorization":
+                v = "Bearer <REDACTED>"
             curl.extend(["-H", shlex.quote(f"{k}: {v}")])
     return " ".join(curl)
 
@@ -70,11 +73,76 @@ class VodarenskaAPI:
     def _headers(self):
         return {"Authorization": f"Bearer {self._get_token()}"}
 
+    
+    def _request_with_auth_retry(
+        self,
+        url: str,
+        params: dict | None = None,
+        timeout: int = 10,
+        max_attempts: int = 3,
+    ) -> requests.Response:
+        """Make an API request with a limited number of retries after HTTP 401."""
+
+        for attempt in range(1, max_attempts + 1):
+            headers = self._headers()
+
+            resp = requests.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=timeout,
+            )
+
+            curl_cmd = to_curl(url, headers=headers, params=params)
+            _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
+
+
+            if resp.status_code != 401:
+                return resp
+
+            # ErrorCode 163 means the requested data does not exist.
+            try:
+                body = resp.json()
+            except ValueError:
+                body = {}
+
+            errors = body.get("Errors", [])
+            if any(
+                error.get("ErrorCode") == 163
+                for error in errors
+                if isinstance(error, dict)
+            ):
+                _LOGGER.debug(
+                    "API returned ErrorCode 163 for %s; "
+                    "requested data is not available",
+                    url,
+                )
+                return resp
+
+            if attempt < max_attempts:
+                _LOGGER.warning(
+                    "API returned HTTP 401 (attempt %s/%s); "
+                    "refreshing Bearer token and retrying",
+                    attempt,
+                    max_attempts,
+                )
+                self._token = None
+                self._token_expiry = 0
+            else:
+                _LOGGER.error(
+                    "API returned HTTP 401 after %s attempts; giving up",
+                    max_attempts,
+                )
+                resp.raise_for_status()
+
+
+        # Defensive fallback; normally unreachable.
+        raise RuntimeError("API request failed without an HTTP response")
+
+
     def hello_world(self) -> dict:
         url = f"{BASE_URL_API}/HelloWorld"
-        curl_cmd = to_curl(url, headers=self._headers())
-        _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
-        resp = requests.get(url, headers=self._headers(), timeout=10)
+        resp = self._request_with_auth_retry(url, timeout=10)
         resp.raise_for_status()
 
         return {
@@ -84,32 +152,50 @@ class VodarenskaAPI:
 
     def get_smartdata_customer(self):
         url = f"{BASE_URL_API}/SmartData/CustomerData"
-        curl_cmd = to_curl(url, headers=self._headers())
-        _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
-        resp = requests.get(url, headers=self._headers(), timeout=10)
+        resp = self._request_with_auth_retry(url, timeout=10)
         resp.raise_for_status()
         return resp.json()
 
-    def get_smartdata_profile(self, meter_id: str, date_from: str, date_to: str, timeout: int = 15):
+    def get_smartdata_profile(
+        self,
+        meter_id: str,
+        date_from: str,
+        date_to: str,
+        timeout: int = 15,
+    ):
         url = f"{BASE_URL_API}/SmartData/ProfileData"
-        params = {
-            "METERID": meter_id,
-            "dateFrom": date_from,
-            "dateTo": date_to,
-        }
+        params = {"METERID": meter_id, "dateFrom": date_from, "dateTo": date_to }
 
-        resp = requests.get(
+        resp = self._request_with_auth_retry(
             url,
-            headers=self._headers(),
             params=params,
             timeout=timeout,
         )
 
-        curl_cmd = to_curl(url, headers=self._headers(), params=params)
-        _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
+        if resp.status_code == 401:
+            try:
+                body = resp.json()
+            except ValueError:
+                body = {}
+
+            errors = body.get("Errors", [])
+            if any(
+                isinstance(error, dict)
+                and error.get("ErrorCode") == 163
+                for error in errors
+            ):
+                _LOGGER.debug(
+                    "No profile data available for meter %s, "
+                    "date range %s..%s (ErrorCode 163)",
+                    meter_id,
+                    date_from,
+                    date_to,
+                )
+                return []
 
         resp.raise_for_status()
         return resp.json()
+
 
 class VodarenskaIntegration:
     def __init__(self, hass: HomeAssistant, api: VodarenskaAPI):
