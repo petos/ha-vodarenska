@@ -96,7 +96,27 @@ class VodarenskaAPI:
             curl_cmd = to_curl(url, headers=headers, params=params)
             _LOGGER.debug("Executing API call as cURL: %s", curl_cmd)
 
+
             if resp.status_code != 401:
+                return resp
+
+            # ErrorCode 163 means the requested data does not exist.
+            try:
+                body = resp.json()
+            except ValueError:
+                body = {}
+
+            errors = body.get("Errors", [])
+            if any(
+                error.get("ErrorCode") == 163
+                for error in errors
+                if isinstance(error, dict)
+            ):
+                _LOGGER.debug(
+                    "API returned ErrorCode 163 for %s; "
+                    "requested data is not available",
+                    url,
+                )
                 return resp
 
             if attempt < max_attempts:
@@ -114,6 +134,7 @@ class VodarenskaAPI:
                     max_attempts,
                 )
                 resp.raise_for_status()
+
 
         # Defensive fallback; normally unreachable.
         raise RuntimeError("API request failed without an HTTP response")
@@ -135,21 +156,46 @@ class VodarenskaAPI:
         resp.raise_for_status()
         return resp.json()
 
-    def get_smartdata_profile(self, meter_id: str, date_from: str, date_to: str, timeout: int = 15):
+    def get_smartdata_profile(
+        self,
+        meter_id: str,
+        date_from: str,
+        date_to: str,
+        timeout: int = 15,
+    ):
         url = f"{BASE_URL_API}/SmartData/ProfileData"
-        params = {
-            "METERID": meter_id,
-            "dateFrom": date_from,
-            "dateTo": date_to,
-        }
+        params = {"METERID": meter_id, "dateFrom": date_from, "dateTo": date_to }
 
         resp = self._request_with_auth_retry(
             url,
             params=params,
             timeout=timeout,
         )
+
+        if resp.status_code == 401:
+            try:
+                body = resp.json()
+            except ValueError:
+                body = {}
+
+            errors = body.get("Errors", [])
+            if any(
+                isinstance(error, dict)
+                and error.get("ErrorCode") == 163
+                for error in errors
+            ):
+                _LOGGER.debug(
+                    "No profile data available for meter %s, "
+                    "date range %s..%s (ErrorCode 163)",
+                    meter_id,
+                    date_from,
+                    date_to,
+                )
+                return []
+
         resp.raise_for_status()
         return resp.json()
+
 
 class VodarenskaIntegration:
     def __init__(self, hass: HomeAssistant, api: VodarenskaAPI):
