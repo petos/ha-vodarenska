@@ -6,6 +6,7 @@ import shlex
 from datetime import datetime, timedelta
 
 from .const import BASE_URL_CONNECT, BASE_URL_API
+from .statistics import import_meter_profile_statistics
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ class VodarenskaAPI:
         resp.raise_for_status()
         return resp.json()
 
-    def get_smartdata_profile(self, meter_id: str, date_from: str, date_to: str):
+    def get_smartdata_profile(self, meter_id: str, date_from: str, date_to: str, timeout: int = 15):
         url = f"{BASE_URL_API}/SmartData/ProfileData"
         params = {
             "METERID": meter_id,
@@ -101,7 +102,7 @@ class VodarenskaAPI:
             url,
             headers=self._headers(),
             params=params,
-            timeout=15,
+            timeout=timeout,
         )
 
         curl_cmd = to_curl(url, headers=self._headers(), params=params)
@@ -144,13 +145,30 @@ class VodarenskaIntegration:
                         meter_id,
                         date_from,
                         date_to,
+                        15,
                     )
-
+                    _LOGGER.debug(
+                        "Meter %s: query=%s..%s, METER_DATE_TO=%s, records=%d, last_record=%s",
+                        meter_id,
+                        date_from,
+                        date_to,
+                        meter.get("METER_DATE_TO"),
+                        len(profile_data) if profile_data else 0,
+                        profile_data[-1] if profile_data else None,
+                    )
                     if profile_data:
                         last_entry = profile_data[-1]
                         last_entry["_api_last_update"] = last_entry.get("DATE")
+
+                        import_meter_profile_statistics(
+                            self.hass,
+                            str(meter_id),
+                            profile_data,
+                        )
+
                         all_data[meter_id] = {
                             "profile": last_entry,
+                            "profile_history": profile_data,
                             "meter": meter,
                             "customer": customer,
                         }
