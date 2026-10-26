@@ -6,6 +6,7 @@ import shlex
 from datetime import datetime, timedelta
 
 from .const import BASE_URL_CONNECT, BASE_URL_API
+from .statistics import import_meter_profile_statistics
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -157,8 +158,16 @@ class VodarenskaIntegration:
                     if profile_data:
                         last_entry = profile_data[-1]
                         last_entry["_api_last_update"] = last_entry.get("DATE")
+
+                        import_meter_profile_statistics(
+                            self.hass,
+                            str(meter_id),
+                            profile_data,
+                        )
+
                         all_data[meter_id] = {
                             "profile": last_entry,
+                            "profile_history": profile_data,
                             "meter": meter,
                             "customer": customer,
                         }
