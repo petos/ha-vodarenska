@@ -206,6 +206,15 @@ async def _async_run_full_history_import(
 
     entries = hass.config_entries.async_entries(DOMAIN)
 
+    from_value = call.data.get("from")
+    to_value = call.data.get("to")
+
+    date_to = (
+        date.fromisoformat(str(to_value))
+        if to_value
+        else dt_util.now().date()
+    )
+
     for config_entry in entries:
         data = hass.data[DOMAIN].get(config_entry.entry_id)
         if not data:
@@ -213,7 +222,7 @@ async def _async_run_full_history_import(
 
         api = data["api"]
         meters = data["meters_coordinator"].data
-        date_to = dt_util.now().date()
+#        date_to = dt_util.now().date()
 
         for meter_id, meter_data in meters.items():
             meter = meter_data.get("meter", {})
@@ -229,10 +238,11 @@ async def _async_run_full_history_import(
 
             try:
                 # METER_DATE_FROM may contain a date or a timestamp.
-                date_from = date.fromisoformat(
-                    str(date_from_value)[:10]
+                date_from = (
+                    date.fromisoformat(str(from_value))
+                    if from_value
+                    else date.fromisoformat(str(date_from_value)[:10])
                 )
-
                 if date_from > date_to:
                     _LOGGER.warning(
                         "Cannot import full history for meter %s: "
