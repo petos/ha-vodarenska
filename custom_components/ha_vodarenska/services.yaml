@@ -1,3 +1,16 @@
 import_full_history:
   name: Import complete history
   description: Imports the complete available history for all water meters. This operation can heavily load the API and take a long time. Use it sparingly and only when necessary. Runs on background, check logs for details.
+  fields:
+    from:
+      name: From date
+      description: Optional start date (YYYY-MM-DD). Defaults to each meter's installation date.
+      required: false
+      selector:
+        date:
+    to:
+      name: To date
+      description: Optional end date (YYYY-MM-DD). Defaults to today.
+      required: false
+      selector:
+        date:

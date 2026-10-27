@@ -8,6 +8,9 @@ from homeassistant.core import HomeAssistant,ServiceCall
 from homeassistant.util.unit_conversion import TemperatureConverter, VolumeConverter
 from homeassistant.util import dt as dt_util
 
+from homeassistant.components import persistent_notification
+_NOTIFICATION_ID = "ha_vodarenska_full_history_import"
+
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -185,14 +188,36 @@ async def async_import_full_history(
         _LOGGER.warning(
             "Full history import is already running; ignoring new request"
         )
+        persistent_notification.async_create(
+            hass,
+            message="Import historie vodoměrů právě probíhá, nepouštím další.",
+            title="Vodárenská integrace",
+            notification_id=_NOTIFICATION_ID,
+        )
         return
 
     _full_history_import_running = True
 
     async def run_import():
         global _full_history_import_running
+
         try:
             await _async_run_full_history_import(hass, call)
+        except Exception:
+            _LOGGER.exception("Full history import failed")
+            persistent_notification.async_create(
+                hass,
+                message="Import historie vodoměrů selhal. Podrobnosti jsou v logu Home Assistantu.",
+                title="Vodárenská integrace - chyba importu",
+                notification_id=_NOTIFICATION_ID,
+            )
+        else:
+            persistent_notification.async_create(
+                hass,
+                message="Import historie všech vodoměrů úspěšně doběhl.",
+                title="Vodárenská integrace",
+                notification_id=_NOTIFICATION_ID,
+            )
         finally:
             _full_history_import_running = False
 
@@ -206,6 +231,15 @@ async def _async_run_full_history_import(
 
     entries = hass.config_entries.async_entries(DOMAIN)
 
+    from_value = call.data.get("from")
+    to_value = call.data.get("to")
+
+    date_to = (
+        date.fromisoformat(str(to_value))
+        if to_value
+        else dt_util.now().date()
+    )
+
     for config_entry in entries:
         data = hass.data[DOMAIN].get(config_entry.entry_id)
         if not data:
@@ -213,13 +247,12 @@ async def _async_run_full_history_import(
 
         api = data["api"]
         meters = data["meters_coordinator"].data
-        date_to = dt_util.now().date()
 
         for meter_id, meter_data in meters.items():
             meter = meter_data.get("meter", {})
             date_from_value = meter.get("METER_DATE_FROM")
 
-            if not date_from_value:
+            if not from_value and not date_from_value:
                 _LOGGER.warning(
                     "Cannot import full history for meter %s: "
                     "METER_DATE_FROM is missing",
@@ -229,10 +262,11 @@ async def _async_run_full_history_import(
 
             try:
                 # METER_DATE_FROM may contain a date or a timestamp.
-                date_from = date.fromisoformat(
-                    str(date_from_value)[:10]
+                date_from = (
+                    date.fromisoformat(str(from_value))
+                    if from_value
+                    else date.fromisoformat(str(date_from_value)[:10])
                 )
-
                 if date_from > date_to:
                     _LOGGER.warning(
                         "Cannot import full history for meter %s: "
