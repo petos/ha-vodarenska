@@ -247,7 +247,6 @@ async def _async_run_full_history_import(
 
         api = data["api"]
         meters = data["meters_coordinator"].data
-#        date_to = dt_util.now().date()
 
         for meter_id, meter_data in meters.items():
             meter = meter_data.get("meter", {})
