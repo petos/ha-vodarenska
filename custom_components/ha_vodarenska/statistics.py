@@ -8,6 +8,9 @@ from homeassistant.core import HomeAssistant,ServiceCall
 from homeassistant.util.unit_conversion import TemperatureConverter, VolumeConverter
 from homeassistant.util import dt as dt_util
 
+from homeassistant.components import persistent_notification
+_NOTIFICATION_ID = "ha_vodarenska_full_history_import"
+
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -172,6 +175,12 @@ def import_meter_profile_statistics(
         len(meter_stats),
         len(temperature_stats),
     )
+    persistent_notification.async_create(
+        hass,
+        message="Import historie vodoměrů úspěšně doběhl.",
+        title="Vodárenská integrace",
+        notification_id=_NOTIFICATION_ID,
+    )
 
 async def async_import_full_history(
     hass: HomeAssistant,
@@ -184,6 +193,12 @@ async def async_import_full_history(
     if _full_history_import_running:
         _LOGGER.warning(
             "Full history import is already running; ignoring new request"
+        )
+        persistent_notification.async_create(
+            hass,
+            message="Import historie vodoměrů právě probíhá, nepouštím další.",
+            title="Vodárenská integrace",
+            notification_id=_NOTIFICATION_ID,
         )
         return
 
