@@ -175,12 +175,6 @@ def import_meter_profile_statistics(
         len(meter_stats),
         len(temperature_stats),
     )
-    persistent_notification.async_create(
-        hass,
-        message="Import historie vodoměrů úspěšně doběhl.",
-        title="Vodárenská integrace",
-        notification_id=_NOTIFICATION_ID,
-    )
 
 async def async_import_full_history(
     hass: HomeAssistant,
@@ -206,8 +200,24 @@ async def async_import_full_history(
 
     async def run_import():
         global _full_history_import_running
+
         try:
             await _async_run_full_history_import(hass, call)
+        except Exception:
+            _LOGGER.exception("Full history import failed")
+            persistent_notification.async_create(
+                hass,
+                message="Import historie vodoměrů selhal. Podrobnosti jsou v logu Home Assistantu.",
+                title="Vodárenská integrace - chyba importu",
+                notification_id=_NOTIFICATION_ID,
+            )
+        else:
+            persistent_notification.async_create(
+                hass,
+                message="Import historie všech vodoměrů úspěšně doběhl.",
+                title="Vodárenská integrace",
+                notification_id=_NOTIFICATION_ID,
+            )
         finally:
             _full_history_import_running = False
 
@@ -243,7 +253,7 @@ async def _async_run_full_history_import(
             meter = meter_data.get("meter", {})
             date_from_value = meter.get("METER_DATE_FROM")
 
-            if not date_from_value:
+            if not from_value and not date_from_value:
                 _LOGGER.warning(
                     "Cannot import full history for meter %s: "
                     "METER_DATE_FROM is missing",
