@@ -14,3 +14,14 @@ import_full_history:
       required: false
       selector:
         date:
+    batch_days:
+      name: Batch size
+      description: Initial number of days requested in one API call. If timeout, the batch size is automatically reduced, down to 4 days.
+      required: false
+      default: 28
+      selector:
+        number:
+          min: 4
+          max: 28
+          step: 1
+          mode: box

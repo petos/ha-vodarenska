@@ -1,4 +1,6 @@
 import logging
+import math
+import requests
 from datetime import date, datetime, timedelta
 
 from homeassistant.components.recorder.models import StatisticMeanType,StatisticMetaData
@@ -15,6 +17,139 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 _full_history_import_running = False
+
+
+_TIMEOUT_HTTP_STATUS_CODES = {408, 499, 504}
+
+
+def _is_timeout_error(exc: Exception) -> bool:
+    """Return True for network timeouts and timeout-like HTTP responses."""
+
+    if isinstance(exc, requests.Timeout):
+        return True
+
+    if isinstance(exc, requests.HTTPError):
+        response = exc.response
+        return (
+            response is not None
+            and response.status_code in _TIMEOUT_HTTP_STATUS_CODES
+        )
+
+    return False
+
+
+async def _async_import_profile_range(
+    hass,
+    api,
+    meter_id: str,
+    date_from: date,
+    date_to: date,
+    batch_days: int,
+) -> int:
+    """Import profile data, reducing batch size after timeout."""
+
+    pending = []
+    current_start = date_from
+
+    # Create the initial batches. The next batch starts at the previous
+    # batch's end to preserve the existing one-day overlap.
+    while current_start <= date_to:
+        current_end = min(
+            current_start + timedelta(days=batch_days - 1),
+            date_to,
+        )
+        pending.append((current_start, current_end, batch_days))
+
+        if current_end >= date_to:
+            break
+
+        current_start = current_end
+
+    total_records = 0
+
+    while pending:
+        batch_start, batch_end, current_batch_days = pending.pop(0)
+
+        actual_batch_days = (batch_end - batch_start).days + 1
+        effective_batch_days = min(current_batch_days, actual_batch_days)
+
+        try:
+            profile_data = await hass.async_add_executor_job(
+                api.get_smartdata_profile,
+                str(meter_id),
+                batch_start.isoformat(),
+                batch_end.isoformat(),
+                180,
+            )
+
+        except Exception as exc:
+            if not _is_timeout_error(exc):
+                raise
+
+            if effective_batch_days <= 4:
+                _LOGGER.error(
+                    "Profile import failed for meter %s, date range %s..%s. "
+                    "Timeout persists at minimum batch size (%s days).",
+                    meter_id,
+                    batch_start,
+                    batch_end,
+                    effective_batch_days,
+                )
+                raise
+
+            next_batch_days = max(
+                4,
+                math.ceil(effective_batch_days / 2),
+            )
+
+            _LOGGER.warning(
+                "Timeout importing meter %s, date range %s..%s "
+                "with batch size %s days. Retrying with %s-day batches.",
+                meter_id,
+                batch_start,
+                batch_end,
+                effective_batch_days,
+                next_batch_days,
+            )
+
+            # Split only the failed range. Keep the one-day overlap.
+            smaller_batches = []
+            sub_start = batch_start
+
+            while sub_start <= batch_end:
+                sub_end = min(
+                    sub_start + timedelta(days=next_batch_days - 1),
+                    batch_end,
+                )
+                smaller_batches.append(
+                    (sub_start, sub_end, next_batch_days)
+                )
+
+                if sub_end >= batch_end:
+                    break
+
+                sub_start = sub_end
+
+            # Process the smaller batches before the remaining queue.
+            pending[0:0] = smaller_batches
+            continue
+
+        if profile_data:
+            import_meter_profile_statistics(
+                hass,
+                str(meter_id),
+                profile_data,
+            )
+            total_records += len(profile_data)
+        else:
+            _LOGGER.warning(
+                "No profile data found for meter %s, date range %s..%s",
+                meter_id,
+                batch_start,
+                batch_end,
+            )
+
+    return total_records
 
 def get_meter_statistic_id(meter_id: str) -> str:
     """Return the external statistic ID for a water meter."""
@@ -227,7 +362,7 @@ async def _async_run_full_history_import(
     hass: HomeAssistant,
     call: ServiceCall,
 ) -> None:
-    """Import complete available history in 30-day batches."""
+    """Import complete available history in configurable batches."""
 
     entries = hass.config_entries.async_entries(DOMAIN)
 
@@ -283,46 +418,40 @@ async def _async_run_full_history_import(
                     date_to,
                 )
 
-                batch_start = date_from
+                batch_days = int(call.data.get("batch_days", 28))
+
+                if batch_days < 4:
+                    raise ValueError(
+                        f"Invalid batch_days value: {batch_days}. "
+                        "Minimum allowed value is 4."
+                    )
+
+                _LOGGER.info(
+                    "Starting full history import for meter %s: %s to %s "
+                    "(initial batch size: %d days)",
+                    meter_id,
+                    date_from,
+                    date_to,
+                    batch_days,
+                )
+
                 total_records = 0
+                batch_start = date_from
 
                 while batch_start <= date_to:
-                    # Each batch covers at most 30 days.
                     batch_end = min(
-                        batch_start + timedelta(days=29),
+                        batch_start + timedelta(days=batch_days - 1),
                         date_to,
                     )
 
-                    _LOGGER.info(
-                        "Importing meter %s, batch %s to %s",
-                        meter_id,
+                    total_records += await _async_import_profile_range(
+                        hass,
+                        api,
+                        str(meter_id),
                         batch_start,
                         batch_end,
+                        batch_days,
                     )
-
-                    profile_data = await hass.async_add_executor_job(
-                        api.get_smartdata_profile,
-                        str(meter_id),
-                        batch_start.isoformat(),
-                        batch_end.isoformat(),
-                        180,
-                    )
-
-                    if profile_data:
-                        import_meter_profile_statistics(
-                            hass,
-                            str(meter_id),
-                            profile_data,
-                        )
-                        total_records += len(profile_data)
-                    else:
-                        _LOGGER.warning(
-                            "Full history import returned an empty result for meter %s, "
-                            "period %s to %s",
-                            meter_id,
-                            batch_start,
-                            batch_end,
-                        )
 
                     if batch_end >= date_to:
                         break

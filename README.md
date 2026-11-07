@@ -23,7 +23,7 @@ Custom component pro Home Assistant - integrace s VAS Vodárenská API.
 
 ## Senzory
 
-- `sensor.vas_vodomer_<meter_id>`: stav vodoměru.
+- `sensor.vas_vodomer_<meter_id>`: stav vodoměru -- **POZOR**, zobrazuje se POUZE **změna jednou za 6 hodin**. Pro hodinové rozlišení spotřeby je nutné jít do ENERGY DASHBOARD>Voda.
 - `sensor.vas_vodomer_<meter_id>_temperature`: teplota vodoměru.
 - `binary_sensor.vas_vodomer_<meter_id>_installed`: informace, zda je vodoměr nainstalován.
 
@@ -61,10 +61,11 @@ Dostupnost historických údajů závisí na datech poskytovaných API a na tom,
 
 Služba `ha_vodarenska.import_full_history` umožňuje ručně importovat dostupnou historii všech vodoměrů do statistik Home Assistantu. Import probíhá na pozadí, takže není nutné čekat na jeho dokončení v rozhraní pro spouštění akcí.
 
-Import lze omezit volitelnými parametry:
+Import lze omezit __volitelnými__ parametry:
 
 - **`from`** - počáteční datum ve formátu `YYYY-MM-DD`. Pokud není zadáno, použije se datum počátečního odečtu konkrétního vodoměru.
 - **`to`** - koncové datum ve formátu `YYYY-MM-DD`. Pokud není zadáno, použije se aktuální datum.
+- **`batch_days`** - Velikost dávky, po které se stahuje. Výchozí hodnota je 28 dnů, automaticky se sníží v případě problémů s rychlostí/timeoutováním API. Obvykle není třeba nastavovat. 
 
 Obě data jsou zahrnuta do importovaného období.
 
